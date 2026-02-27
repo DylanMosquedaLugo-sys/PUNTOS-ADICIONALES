@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIMULADOR_ASIG_MEM [MODO 8-BIT]</title>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+
+    <style>
+        /* --- ESTILO RETRO-ARCADE 8-BIT --- */
+        :root {
+            --bg-color: #1a002b; /* Fondo oscuro morado */
+            --card-bg: #2c0047;
+            --primary: #39ff14; /* Verde Neón Terminal */
+            --accent-cyan: #00ffff; /* Cyan */
+            --accent-magenta: #ff00ff; /* Magenta */
+            --warning: #ff3300; /* Rojo anaranjado */
+            --border-color: #39ff14;
+            --pixel-border: 4px solid var(--border-color);
+        }
+
+        body {
+            font-family: 'VT323', monospace;
+            background-color: var(--bg-color);
+            color: var(--primary);
+            margin: 0;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            font-size: 1.2rem;
+            position: relative;
+            /* Patrón de fondo pixelado */
+            background-image: 
+                linear-gradient(transparent 95%, rgba(57, 255, 20, 0.1) 50%),
+                linear-gradient(90deg, transparent 95%, rgba(57, 255, 20, 0.1) 50%);
+            background-size: 20px 20px;
+        }
+
+        /* Efecto de Scanlines (Monitor Viejo) */
+        body::after {
+            content: "";
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.2),
+                rgba(0, 0, 0, 0.2) 2px,
+                transparent 2px,
+                transparent 4px
+            );
+            pointer-events: none;
+            z-index: 999;
+        }
+
+        h1 {
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            margin-bottom: 5px;
+            font-size: 3rem;
+            text-shadow: 3px 3px 0px var(--accent-magenta), -3px -3px 0px var(--accent-cyan);
+            animation: glitch 2s infinite alternate;
+            text-align: center;
+        }
+        
+        .subtitle {
+            color: var(--accent-cyan);
+            font-size: 1.4rem;
+            margin-bottom: 40px;
+            text-transform: uppercase;
+            border-bottom: var(--pixel-border);
+            padding-bottom: 10px;
+            text-align: center;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 30px;
+            width: 100%;
+            max-width: 1200px;
+            align-items: start;
+        }
+
+        /* --- PANELES --- */
+        .controls, .visualization {
+            background: var(--card-bg);
+            padding: 25px;
+            border: var(--pixel-border);
+            box-shadow: 8px 8px 0px rgba(0,0,0,0.5);
+            position: relative;
+        }
+
+        /* Etiquetas CSS traducidas */
+        .controls::before, .visualization::before {
+            content: "ENTRADA_SISTEMA";
+            position: absolute;
+            top: -15px;
+            left: 20px;
+            background: var(--bg-color);
+            padding: 0 10px;
+            color: var(--accent-magenta);
+            font-weight: bold;
+            border: 2px solid var(--accent-magenta);
+        }
+        .visualization::before { content: "SALIDA_VISUAL"; color: var(--accent-cyan); border-color: var(--accent-cyan); }
+
+        /* --- INPUTS --- */
+        .input-group {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px dashed var(--primary);
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+            color: var(--accent-cyan);
+            font-size: 1.3rem;
+        }
+        
+        input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            background-color: #000;
+            border: 2px solid var(--primary);
+            color: var(--primary);
+            font-family: 'VT323', monospace;
+            font-size: 1.5rem;
+            box-sizing: border-box;
+            outline: none;
+        }
+        input[type="number"]:focus {
+            background-color: #111;
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 10px var(--accent-cyan);
+        }
+
+        /* --- BOTONES --- */
+        button {
+            width: 100%;
+            padding: 12px;
+            border: 4px solid;
+            cursor: pointer;
+            font-family: 'VT323', monospace;
+            font-size: 1.4rem;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            transition: all 0.1s;
+            font-weight: bold;
+            position: relative;
+            top: 0;
+            box-shadow: 4px 4px 0px #000;
+        }
+        
+        button:active {
+            top: 4px;
+            box-shadow: 0px 0px 0px #000;
+        }
+
+        .btn-add { 
+            background-color: var(--accent-cyan); color: #000; border-color: var(--accent-cyan);
+        }
+        .btn-add:hover { background-color: #fff; }
+
+        .btn-run { 
+            background-color: var(--primary); color: #000; border-color: var(--primary); margin-top: 20px;
+        }
+        .btn-run:hover { background-color: #fff; }
+        
+        button[onclick="runSimulation('worst')"] {
+            background-color: var(--accent-magenta); border-color: var(--accent-magenta);
+        }
+
+        .btn-reset { 
+            background-color: transparent; color: var(--warning); border-color: var(--warning);
+        }
+        .btn-reset:hover { background-color: var(--warning); color: #000; }
+
+        /* --- VISUALIZACIÓN --- */
+        .section-title {
+            color: var(--primary);
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 2px solid var(--primary);
+        }
+
+        #algoTitle { color: var(--accent-magenta); text-shadow: 0 0 5px var(--accent-magenta); }
+
+        .memory-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 25px;
+            margin-bottom: 40px;
+            min-height: 150px;
+            padding: 20px;
+            border: 4px dotted var(--primary);
+            background: rgba(0,0,0,0.3);
+        }
+
+        .memory-block {
+            width: 110px;
+            background-color: #000;
+            border: 3px solid var(--primary);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 5px 5px 0px rgba(57, 255, 20, 0.3);
+        }
+
+        .memory-header {
+            background-color: var(--primary);
+            color: #000;
+            font-size: 1.1rem;
+            padding: 5px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .memory-space {
+            height: 160px;
+            position: relative;
+            background-image: 
+                linear-gradient(var(--border-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--border-color) 1px, transparent 1px);
+            background-size: 10px 10px;
+            background-color: #0a0a0a;
+            opacity: 0.8;
+        }
+
+        .process-allocated {
+            width: 100%;
+            background-color: var(--accent-cyan);
+            color: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            font-weight: bold;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            transition: height 0.5s steps(10);
+            border-top: 2px solid #000;
+            box-shadow: inset 0 0 10px rgba(255,255,255,0.5);
+        }
+
+        .fragmentation-indicator {
+            position: absolute;
+            top: 0;
+            width: 100%;
+            background: repeating-linear-gradient(
+                45deg,
+                var(--warning),
+                var(--warning) 10px,
+                #000 10px,
+                #000 20px
+            );
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            text-shadow: 1px 1px #000;
+            font-size: 1rem;
+            z-index: 1;
+            opacity: 0.7;
+        }
+
+        .process-queue {
+            display: flex;
+            gap: 15px;
+            padding: 15px;
+            border: 4px dotted var(--accent-cyan);
+            background: rgba(0,0,0,0.3);
+            min-height: 80px;
+            overflow-x: auto;
+        }
+
+        .process-item {
+            width: 60px;
+            height: 60px;
+            background: #000;
+            color: var(--accent-cyan);
+            border: 3px solid var(--accent-cyan);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+            box-shadow: 4px 4px 0px var(--accent-cyan);
+        }
+
+        .results-panel {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #000;
+            border: 4px solid var(--accent-magenta);
+            box-shadow: 8px 8px 0px var(--accent-magenta);
+            display: none;
+        }
+        .results-panel.visible { display: block; animation: flicker 0.3s infinite alternate; }
+        .results-panel h3 { margin: 0 0 15px 0; color: var(--accent-magenta); text-transform: uppercase; }
+
+        .stat-row {
+            display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 1.3rem;
+            border-bottom: 1px dashed #555;
+        }
+        .stat-val { color: var(--accent-cyan); }
+
+        .legend { display: flex; gap: 20px; margin-bottom: 20px; font-size: 1.1rem;}
+        .legend-item { display: flex; align-items: center; gap: 8px; }
+        .box { width: 15px; height: 15px; border: 2px solid #fff; }
+
+        @keyframes glitch {
+            0% { text-shadow: 3px 3px 0px var(--accent-magenta), -3px -3px 0px var(--accent-cyan); }
+            50% { text-shadow: -3px -3px 0px var(--accent-magenta), 3px 3px 0px var(--accent-cyan); }
+            100% { text-shadow: 3px -3px 0px var(--accent-magenta), -3px 3px 0px var(--accent-cyan); }
+        }
+        @keyframes flicker {
+            0% { opacity: 1; }
+            100% { opacity: 0.95; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>>> SIMULADOR_MEMORIA <<</h1>
+    <div class="subtitle">INSERTE MONEDA // SELECCIONE ALGORITMO</div>
+
+    <div class="container">
+        <div class="controls">
+            <div class="input-group">
+                <label>[1] CONFIGURAR BLOQUES</label>
+                <input type="number" id="blockSize" placeholder="TAMAÑO (KB)">
+                <button class="btn-add" onclick="addBlock()">[+] INSERTAR BLOQUE</button>
+                <button class="btn-reset" onclick="resetBlocks()">[X] BORRAR MEMORIA</button>
+            </div>
+
+            <div class="input-group">
+                <label>[2] COLA DE PROCESOS</label>
+                <input type="number" id="processSize" placeholder="TAMAÑO (KB)">
+                <button class="btn-add" onclick="addProcess()" style="background-color: var(--accent-magenta); border-color:var(--accent-magenta);">[+] INSERTAR PROCESO</button>
+                <button class="btn-reset" onclick="resetProcesses()">[X] BORRAR COLA</button>
+            </div>
+
+            <div class="input-group" style="border: none; padding-bottom:0;">
+                <label>[3] EJECUTAR</label>
+                <button class="btn-run" onclick="runSimulation('best')">INICIAR P1 (BEST FIT)</button>
+                <button class="btn-run" onclick="runSimulation('worst')" style="margin-top:10px;">INICIAR P2 (WORST FIT)</button>
+                <button class="btn-reset" onclick="fullReset()" style="margin-top:20px; border: 4px dotted var(--warning);">!! REINICIO TOTAL !!</button>
+            </div>
+        </div>
+
+        <div class="visualization">
+            
+            <div class="legend">
+                <div class="legend-item"><div class="box" style="background: #000; border-color: var(--primary);"></div> LIBRE</div>
+                <div class="legend-item"><div class="box" style="background: var(--accent-cyan); border-color: var(--accent-cyan);"></div> ASIGNADO</div>
+                <div class="legend-item"><div class="box" style="background: var(--warning); border-color: var(--warning);"></div> FRAG (BASURA)</div>
+            </div>
+
+            <div class="section-title">
+                MAPA DE MEMORIA
+                <span id="algoTitle" style="color: var(--accent-magenta);">LISTO J1</span>
+            </div>
+            <div class="memory-container" id="memoryContainer">
+                <div style="width:100%; text-align:center; font-style:italic;">
+                    [ NO HAY CARTUCHOS DE MEMORIA ]
+                </div>
+            </div>
+
+            <div class="section-title">SIGUIENTES PROCESOS</div>
+            <div class="process-queue" id="processQueue">
+                </div>
+
+            <div id="results" class="results-panel">
+                <h3>>> MISIÓN COMPLETADA <<</h3>
+                <div class="stat-row"><span>MODO:</span> <span id="resAlgo" class="stat-val">-</span></div>
+                <div class="stat-row"><span>PUNTAJE (ÉXITO):</span> <span id="resAssigned" class="stat-val">0</span></div>
+                <div class="stat-row"><span>GAME OVER (FALLOS):</span> <span id="resFailed" class="stat-val" style="color:var(--warning)">0</span></div>
+                <div class="stat-row"><span>DESPERDICIO (FRAG):</span> <span id="resFrag" class="stat-val">0</span> KB</div>
+                <div class="stat-row"><span>NIVEL EFICIENCIA:</span> <span id="resEff" class="stat-val">0%</span></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let memoryBlocks = []; 
+        let processQueue = []; 
+        let initialBlocks = []; 
+        let blockIdCounter = 1;
+        let processIdCounter = 1;
+
+        function addBlock() {
+            const sizeInput = document.getElementById('blockSize');
+            const size = parseInt(sizeInput.value);
+            if (!size || size <= 0) return alert("ERROR: TAMAÑO INVÁLIDO");
+            const block = { id: blockIdCounter++, size: size, remaining: size, processes: [] };
+            memoryBlocks.push(block);
+            initialBlocks = JSON.parse(JSON.stringify(memoryBlocks.map(b => ({...b, processes:[], remaining: b.size}))));
+            sizeInput.value = '';
+            renderMemory();
+        }
+
+        function addProcess() {
+            const sizeInput = document.getElementById('processSize');
+            const size = parseInt(sizeInput.value);
+            if (!size || size <= 0) return alert("ERROR: TAMAÑO INVÁLIDO");
+            processQueue.push({ id: processIdCounter++, size: size });
+            sizeInput.value = '';
+            renderQueue();
+        }
+
+        function resetBlocks() {
+            memoryBlocks = []; initialBlocks = []; blockIdCounter = 1;
+            renderMemory(); hideResults();
+        }
+
+        function resetProcesses() {
+            processQueue = []; processIdCounter = 1;
+            renderQueue(); hideResults();
+        }
+
+        function fullReset() { resetBlocks(); resetProcesses(); }
+
+        function renderMemory() {
+            const container = document.getElementById('memoryContainer');
+            container.innerHTML = '';
+            if (memoryBlocks.length === 0) {
+                container.innerHTML = '<div style="width:100%; text-align:center; font-style:italic;">[ NO HAY CARTUCHOS DE MEMORIA ]</div>';
+                return;
+            }
+            memoryBlocks.forEach(block => {
+                const blockDiv = document.createElement('div');
+                blockDiv.className = 'memory-block';
+                
+                const header = document.createElement('div');
+                header.className = 'memory-header';
+                header.innerText = `BLOQUE_${block.id} [${block.size}K]`;
+                blockDiv.appendChild(header);
+
+                const spaceDiv = document.createElement('div');
+                spaceDiv.className = 'memory-space';
+                let currentHeight = 0;
+                
+                block.processes.forEach(p => {
+                    const pDiv = document.createElement('div');
+                    pDiv.className = 'process-allocated';
+                    const heightPercent = (p.size / block.size) * 100;
+                    pDiv.style.height = `${heightPercent}%`;
+                    pDiv.style.bottom = `${currentHeight}%`;
+                    pDiv.innerHTML = `P${p.id}<br>${p.size}`;
+                    spaceDiv.appendChild(pDiv);
+                    currentHeight += heightPercent;
+                });
+
+                if (block.remaining > 0 && block.remaining < block.size && block.processes.length > 0) {
+                    const fragDiv = document.createElement('div');
+                    fragDiv.className = 'fragmentation-indicator';
+                    const fragHeight = (block.remaining / block.size) * 100;
+                    fragDiv.style.height = `${fragHeight}%`;
+                    fragDiv.style.top = '0'; 
+                    fragDiv.innerText = `FRAG: ${block.remaining}`;
+                    spaceDiv.appendChild(fragDiv);
+                }
+                blockDiv.appendChild(spaceDiv);
+                container.appendChild(blockDiv);
+            });
+        }
+
+        function renderQueue() {
+            const container = document.getElementById('processQueue');
+            container.innerHTML = '';
+            processQueue.forEach(p => {
+                const pDiv = document.createElement('div');
+                pDiv.className = 'process-item';
+                pDiv.innerHTML = `P${p.id}<span>${p.size}K</span>`;
+                container.appendChild(pDiv);
+            });
+        }
+
+        async function runSimulation(type) {
+            if (initialBlocks.length === 0) return alert("INSERTE BLOQUES PRIMERO");
+            if (processQueue.length === 0) return alert("COLA DE PROCESOS VACÍA");
+
+            memoryBlocks = JSON.parse(JSON.stringify(initialBlocks));
+            renderMemory();
+
+            document.getElementById('algoTitle').innerText = type === 'best' ? "EJECUTANDO: MEJOR AJUSTE..." : "EJECUTANDO: PEOR AJUSTE...";
+            
+            const queueCopy = [...processQueue];
+            let assignedCount = 0;
+            let failedCount = 0;
+
+            for (let i = 0; i < queueCopy.length; i++) {
+                const process = queueCopy[i];
+                let selectedBlockIndex = -1;
+
+                if (type === 'best') {
+                    let minSpace = Infinity;
+                    memoryBlocks.forEach((block, index) => {
+                        if (block.remaining >= process.size) {
+                            if (block.remaining < minSpace) {
+                                minSpace = block.remaining;
+                                selectedBlockIndex = index;
+                            }
+                        }
+                    });
+                } else {
+                    let maxSpace = -1;
+                    memoryBlocks.forEach((block, index) => {
+                        if (block.remaining >= process.size) {
+                            if (block.remaining > maxSpace) {
+                                maxSpace = block.remaining;
+                                selectedBlockIndex = index;
+                            }
+                        }
+                    });
+                }
+
+                if (selectedBlockIndex !== -1) {
+                    memoryBlocks[selectedBlockIndex].processes.push(process);
+                    memoryBlocks[selectedBlockIndex].remaining -= process.size;
+                    assignedCount++;
+                } else {
+                    failedCount++;
+                }
+
+                renderMemory();
+                const queueItems = document.querySelectorAll('.process-item');
+                if(queueItems[i]) {
+                    queueItems[i].style.opacity = '0.3';
+                    queueItems[i].style.transform = 'scale(0.9)';
+                    queueItems[i].style.filter = 'grayscale(100%)';
+                }
+
+                await new Promise(r => setTimeout(r, 600));
+            }
+
+            calculateStats(type, assignedCount, failedCount);
+            document.getElementById('algoTitle').innerText = "FINALIZADO";
+        }
+
+        function calculateStats(type, assigned, failed) {
+            let totalInternalFragmentation = 0;
+            let totalMemory = 0;
+            let usedMemory = 0;
+
+            memoryBlocks.forEach(block => {
+                totalMemory += block.size;
+                if (block.processes.length > 0) {
+                    totalInternalFragmentation += block.remaining;
+                    usedMemory += (block.size - block.remaining);
+                }
+            });
+
+            const efficiency = totalMemory > 0 ? ((usedMemory / totalMemory) * 100).toFixed(1) : 0;
+
+            document.getElementById('results').className = 'results-panel visible';
+            document.getElementById('resAlgo').innerText = type === 'best' ? "MEJOR AJUSTE" : "PEOR AJUSTE";
+            document.getElementById('resAssigned').innerText = assigned;
+            document.getElementById('resFailed').innerText = failed;
+            document.getElementById('resFrag').innerText = totalInternalFragmentation;
+            document.getElementById('resEff').innerText = efficiency + "%";
+        }
+
+        function hideResults() {
+            document.getElementById('results').className = 'results-panel';
+            document.getElementById('algoTitle').innerText = "LISTO";
+        }
+
+        renderMemory();
+    </script>
+</body>
+</html>
